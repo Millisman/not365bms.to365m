@@ -18,7 +18,6 @@
 
 #include "bq769x0_registers.h"
 #include "mcu/i2c_master.h"
-#include "stream/uartstream.h"
 
 //#define IC_BQ76920
 //#define IC_BQ76930
@@ -70,7 +69,7 @@ enum BQ769xERR {
 };
 
 typedef struct __attribute__((packed)) {
-    bool        BQ_dbg;                 // false
+//     bool        BQ_dbg;                 // false
     bool        Allow_Charging;         // false
     bool        Allow_Discharging;      // false
     int32_t     Batt_CapaNom_mAsec;     // *3600 mAs, nominal capacity of battery pack, max. 580 Ah possible @ 3.7V
@@ -148,7 +147,6 @@ typedef struct __attribute__((packed)) {
 
 
 class bq769x0 {
-    stream::UartStream  cout;
     bq769_conf          &conf;
     bq769_data          &data;
     bq769_stats         &stats;

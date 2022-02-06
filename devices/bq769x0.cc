@@ -27,10 +27,10 @@
 #include <avr/pgmspace.h>
 #include <stdint.h>
 
-using stream::Flags::PGM;
 
 namespace devices {
 
+   
 const char *byte2char(int x) {
     static char b[9];
     b[0] = '\0';
@@ -55,7 +55,6 @@ uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData) {
 }
 
 bq769x0::bq769x0(bq769_conf &_conf, bq769_data &_data, bq769_stats &_stats):
-    cout(mcu::Usart::get()),
     conf(_conf),
     data(_data),
     stats(_stats),
@@ -74,7 +73,7 @@ void bq769x0::begin() {
         // should be set to 0x19 according to datasheet
         writeRegister(CC_CFG, 0x19);
         if (readRegister(CC_CFG) == 0x19) break;
-        cout << PGM << PSTR("bq769x0 CFG error!\r\n");
+        //cout << PGM << PSTR("bq769x0 CFG error!\r\n");
         _delay_ms(125);
     }
     // initial settings for bq769x0
@@ -103,7 +102,7 @@ uint8_t bq769x0::checkStatus() {
         sys_stat.regByte = readRegister(SYS_STAT);
         // first check, if only a new CC reading is available
         if (sys_stat.bits.CC_READY == 1) {
-            if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0: CC ready\r\n");
+            //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0: CC ready\r\n");
             updateCurrent();  // automatically clears CC ready flag
         }
         // Serious error occured
@@ -114,7 +113,7 @@ uint8_t bq769x0::checkStatus() {
                 dischargingDisabled_ |= (1 << ERROR_XREADY);
                 stats.errorCounter_[ERROR_XREADY]++;
                 stats.errorTimestamps_[ERROR_XREADY] = mcu::Timer::millis();
-                if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: XREADY\r\n");
+                //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: XREADY\r\n");
             }
             if (!errorStatus_.bits.OVRD_ALERT && sys_stat.bits.OVRD_ALERT) { // Alert error
                 mChargingEnabled = mDischargingEnabled = false;
@@ -122,21 +121,21 @@ uint8_t bq769x0::checkStatus() {
                 dischargingDisabled_ |= (1 << ERROR_ALERT);
                 stats.errorCounter_[ERROR_ALERT]++;
                 stats.errorTimestamps_[ERROR_ALERT] = mcu::Timer::millis();
-                if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: ALERT\r\n");
+                //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: ALERT\r\n");
             }
             if (sys_stat.bits.UV) { // UV error
                 mDischargingEnabled = false;
                 dischargingDisabled_ |= (1 << ERROR_UVP);
                 stats.errorCounter_[ERROR_UVP]++;
                 stats.errorTimestamps_[ERROR_UVP] = mcu::Timer::millis();
-                if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: UVP\r\n");
+                //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: UVP\r\n");
             }
             if (sys_stat.bits.OV) { // OV error
                 mChargingEnabled = false;
                 chargingDisabled_ |= (1 << ERROR_OVP);
                 stats.errorCounter_[ERROR_OVP]++;
                 stats.errorTimestamps_[ERROR_OVP] = mcu::Timer::millis();
-                if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: OVP\r\n");
+                //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: OVP\r\n");
 
             }
             if (sys_stat.bits.SCD) { // SCD
@@ -144,7 +143,7 @@ uint8_t bq769x0::checkStatus() {
                 dischargingDisabled_ |= (1 << ERROR_SCD);
                 stats.errorCounter_[ERROR_SCD]++;
                 stats.errorTimestamps_[ERROR_SCD] = mcu::Timer::millis();
-                if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: SCD\r\n");
+                //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: SCD\r\n");
             }
             if (sys_stat.bits.OCD) { // OCD
                 mDischargingEnabled = false;
@@ -152,7 +151,7 @@ uint8_t bq769x0::checkStatus() {
                 stats.errorCounter_[ERROR_OCD]++;
                 stats.errorTimestamps_[ERROR_OCD] = mcu::Timer::millis();
 
-                if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: OCD\r\n");
+                //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: OCD\r\n");
             }
             errorStatus_.regByte = sys_stat.regByte;
         } else { errorStatus_.regByte = 0;
@@ -169,7 +168,7 @@ void bq769x0::clearErrors() {
     if (errorStatus_.bits.DEVICE_XREADY) {
         // datasheet recommendation: try to clear after waiting a few seconds
         if((uint32_t)(mcu::Timer::millis() - stats.errorTimestamps_[ERROR_XREADY]) > 3UL * 1000UL) {
-            if(conf.BQ_dbg) cout << PGM << PSTR("Attempting to clear XREADY error\r\n");
+            //if(conf.BQ_dbg) cout << PGM << PSTR("Attempting to clear XREADY error\r\n");
             writeRegister(SYS_STAT, STAT_DEVICE_XREADY);
             enableCharging(1 << ERROR_XREADY);
             enableDischarging(1 << ERROR_XREADY);
@@ -178,7 +177,7 @@ void bq769x0::clearErrors() {
     }
     
     if(errorStatus_.bits.OVRD_ALERT) {
-        if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear ALERT err!\r\n");
+        //if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear ALERT err!\r\n");
         writeRegister(SYS_STAT, STAT_OVRD_ALERT);
         enableCharging(1 << ERROR_ALERT);
         enableDischarging(1 << ERROR_ALERT);
@@ -187,7 +186,7 @@ void bq769x0::clearErrors() {
     
     if(errorStatus_.bits.UV) {
         if(stats.cellVoltages_[stats.idCellMinVoltage_] > conf.Cell_UVP_mV) {
-            if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear under voltage err!\r\n");
+            //if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear under voltage err!\r\n");
             writeRegister(SYS_STAT, STAT_UV);
             enableDischarging(1 << ERROR_UVP);
             errorStatus_.bits.UV = 0;
@@ -196,7 +195,7 @@ void bq769x0::clearErrors() {
     
     if(errorStatus_.bits.OV) {
         if(stats.cellVoltages_[stats.idCellMaxVoltage_] < conf.Cell_OVP_mV) {
-            if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear over voltage err!\r\n");
+            //if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear over voltage err!\r\n");
             writeRegister(SYS_STAT, STAT_OV);
             enableCharging(1 << ERROR_OVP);
             errorStatus_.bits.OV = 0;
@@ -205,7 +204,7 @@ void bq769x0::clearErrors() {
 
     if(errorStatus_.bits.SCD) {
         if((uint32_t)(mcu::Timer::millis() - stats.errorTimestamps_[ERROR_SCD]) > 10UL * 1000UL) {
-            if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear short circuit err!\r\n");
+            //if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear short circuit err!\r\n");
             writeRegister(SYS_STAT, STAT_SCD);
             enableDischarging(1 << ERROR_SCD);
             errorStatus_.bits.SCD = 0;
@@ -214,7 +213,7 @@ void bq769x0::clearErrors() {
     
     if(errorStatus_.bits.OCD) {
         if((uint32_t)(mcu::Timer::millis() - stats.errorTimestamps_[ERROR_OCD]) > 10UL * 1000UL) {
-            if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear overcurrent charge err!\r\n");
+            //if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear overcurrent charge err!\r\n");
             writeRegister(SYS_STAT, STAT_OCD);
             enableDischarging(1 << ERROR_OCD);
             errorStatus_.bits.OCD = 0;
@@ -254,7 +253,7 @@ bool bq769x0::enableCharging(uint16_t flag) {
         writeRegister(SYS_CTRL2, sys_ctrl2 | 0b00000001);  // switch CHG on
         mChargingEnabled = true;
 
-        if(conf.BQ_dbg) cout << PGM << PSTR("Enabling CHG FET\r\n");
+        //if(conf.BQ_dbg) cout << PGM << PSTR("Enabling CHG FET\r\n");
         return true;
     } else { return mChargingEnabled; }
 }
@@ -267,7 +266,7 @@ void bq769x0::disableCharging(uint16_t flag) {
         sys_ctrl2 = readRegister(SYS_CTRL2);
         writeRegister(SYS_CTRL2, sys_ctrl2 & ~0b00000001);  // switch CHG off
         mChargingEnabled = false;
-        if(conf.BQ_dbg) cout << PGM << PSTR("Disabling CHG FET\r\n");
+        //if(conf.BQ_dbg) cout << PGM << PSTR("Disabling CHG FET\r\n");
     }
 }
 
@@ -280,7 +279,7 @@ bool bq769x0::enableDischarging(uint16_t flag) {
         sys_ctrl2 = readRegister(SYS_CTRL2);
         writeRegister(SYS_CTRL2, sys_ctrl2 | 0b00000010);  // switch DSG on
         mDischargingEnabled = true;
-        if(conf.BQ_dbg) cout << PGM << PSTR("Enabling DISCHG FET\r\n");
+        //if(conf.BQ_dbg) cout << PGM << PSTR("Enabling DISCHG FET\r\n");
         return true;
     } else { return mDischargingEnabled; }
 }
@@ -294,7 +293,7 @@ void bq769x0::disableDischarging(uint16_t flag) {
         sys_ctrl2 = readRegister(SYS_CTRL2);
         writeRegister(SYS_CTRL2, sys_ctrl2 & ~0b00000010);  // switch DSG off
         mDischargingEnabled = false;
-        if(conf.BQ_dbg) cout << PGM << PSTR("Disabling DISCHG FET\r\n");
+        //if(conf.BQ_dbg) cout << PGM << PSTR("Disabling DISCHG FET\r\n");
     }
 }
 
@@ -356,10 +355,10 @@ void bq769x0::updateBalancingSwitches(void) {
                 }
             }
 
-            if(conf.BQ_dbg) {
-                cout << PGM << PSTR("Setting CELLBAL ") << uint8_t(section+1);
-                cout << PGM << PSTR(" register to: ") << byte2char(balancingFlags) << EOL;
-            }
+//             if(conf.BQ_dbg) {
+//                 cout << PGM << PSTR("Setting CELLBAL ") << uint8_t(section+1);
+//                 cout << PGM << PSTR(" register to: ") << byte2char(balancingFlags) << EOL;
+//             }
             
             data.balancingStatus_ |= balancingFlags << section*5;
 
@@ -369,7 +368,7 @@ void bq769x0::updateBalancingSwitches(void) {
     } else if (data.balancingStatus_ > 0) {
         // clear all CELLBAL registers
         for (uint8_t section = 0; section < numberOfSections; section++) {
-            if(conf.BQ_dbg) { cout << PGM << PSTR("Clearing Register CELLBAL ") << uint8_t(section+1) << EOL; }
+            //if(conf.BQ_dbg) { cout << PGM << PSTR("Clearing Register CELLBAL ") << uint8_t(section+1) << EOL; }
             writeRegister(CELLBAL1+section, 0x0);
         }
         data.balancingStatus_ = 0;
@@ -389,10 +388,10 @@ void bq769x0::resetSOC(int percent) {
     if (percent <= 100 && percent >= 0) {
         coulombCounter_ = (int32_t)(conf.Batt_CapaNom_mAsec * percent) / 100L;
     } else {  // reset based on OCV
-        if(conf.BQ_dbg) {
-            cout << PGM << PSTR("NumCells: ") << getNumberOfConnectedCells() << 
-            PGM << PSTR(", voltage: ") << data.batVoltage_ << 'V';
-        }
+//         if(conf.BQ_dbg) {
+//             cout << PGM << PSTR("NumCells: ") << getNumberOfConnectedCells() << 
+//             PGM << PSTR(", voltage: ") << data.batVoltage_ << 'V';
+//         }
         uint16_t voltage = data.batVoltage_ / getNumberOfConnectedCells();
         coulombCounter_ = 0;  // initialize with totally depleted battery (0% SOC)
         for (int i = 0; i < NUM_OCV_POINTS; i++) {
@@ -839,24 +838,24 @@ void bq769x0::checkUser() {
 }
 
 void bq769x0::printRegisters() {
-    cout 
-        << PGM << PSTR("\r\n   ADCGAIN: ") << stats.adcGain_
-        << PGM << PSTR("\r\n ADCOFFSET: ") << stats.adcOffset_
-        << PGM << PSTR("\r\n   CHG DIS: ") << chargingDisabled_
-        << PGM << PSTR("\r\nDISCHG DIS: ") << dischargingDisabled_ << EOL
-        << PGM << PSTR("\r\n0x00  SYS_STAT: ") << byte2char(readRegister(SYS_STAT))
-        << PGM << PSTR("\r\n0x01  CELLBAL1: ") << byte2char(readRegister(CELLBAL1))
-        << PGM << PSTR("\r\n0x04 SYS_CTRL1: ") << byte2char(readRegister(SYS_CTRL1))
-        << PGM << PSTR("\r\n0x05 SYS_CTRL2: ") << byte2char(readRegister(SYS_CTRL2))
-        << PGM << PSTR("\r\n0x06  PROTECT1: ") << byte2char(readRegister(PROTECT1))
-        << PGM << PSTR("\r\n0x07  PROTECT2: ") << byte2char(readRegister(PROTECT2))
-        << PGM << PSTR("\r\n0x08  PROTECT3: ") << byte2char(readRegister(PROTECT3))
-        << PGM << PSTR("\r\n0x09   OV_TRIP: ") << byte2char(readRegister(OV_TRIP))
-        << PGM << PSTR("\r\n0x0A   UV_TRIP: ") << byte2char(readRegister(UV_TRIP))
-        << PGM << PSTR("\r\n0x0B    CC_CFG: ") << byte2char(readRegister(CC_CFG))
-        << PGM << PSTR("\r\n0x32  CC_HI_LO: ") << readDoubleRegister(CC_HI_BYTE)
-        << PGM << PSTR("\r\n0x2A BAT_HI_LO: ") << readDoubleRegister(BAT_HI_BYTE)
-        << EOL;
-}
+//     cout 
+//         << PGM << PSTR("\r\n   ADCGAIN: ") << stats.adcGain_
+//         << PGM << PSTR("\r\n ADCOFFSET: ") << stats.adcOffset_
+//         << PGM << PSTR("\r\n   CHG DIS: ") << chargingDisabled_
+//         << PGM << PSTR("\r\nDISCHG DIS: ") << dischargingDisabled_ << EOL
+//         << PGM << PSTR("\r\n0x00  SYS_STAT: ") << byte2char(readRegister(SYS_STAT))
+//         << PGM << PSTR("\r\n0x01  CELLBAL1: ") << byte2char(readRegister(CELLBAL1))
+//         << PGM << PSTR("\r\n0x04 SYS_CTRL1: ") << byte2char(readRegister(SYS_CTRL1))
+//         << PGM << PSTR("\r\n0x05 SYS_CTRL2: ") << byte2char(readRegister(SYS_CTRL2))
+//         << PGM << PSTR("\r\n0x06  PROTECT1: ") << byte2char(readRegister(PROTECT1))
+//         << PGM << PSTR("\r\n0x07  PROTECT2: ") << byte2char(readRegister(PROTECT2))
+//         << PGM << PSTR("\r\n0x08  PROTECT3: ") << byte2char(readRegister(PROTECT3))
+//         << PGM << PSTR("\r\n0x09   OV_TRIP: ") << byte2char(readRegister(OV_TRIP))
+//         << PGM << PSTR("\r\n0x0A   UV_TRIP: ") << byte2char(readRegister(UV_TRIP))
+//         << PGM << PSTR("\r\n0x0B    CC_CFG: ") << byte2char(readRegister(CC_CFG))
+//         << PGM << PSTR("\r\n0x32  CC_HI_LO: ") << readDoubleRegister(CC_HI_BYTE)
+//         << PGM << PSTR("\r\n0x2A BAT_HI_LO: ") << readDoubleRegister(BAT_HI_BYTE)
+//         << EOL;
+    }
 
 }

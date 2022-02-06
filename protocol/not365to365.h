@@ -18,7 +18,6 @@
 
 #include <stdint.h>
 #include "utils/cpp.h"
-#include "stream/uartstream.h"
 #include <string.h>
 #include <avr/eeprom.h>
 #include "devices/bq769x0.h"
@@ -72,7 +71,7 @@ enum M36Regs :uint8_t {
     Reg_Cell_9      = 0x49  // Cell 10 voltage, mV
 };
 
-enum M36Cells {
+enum M36Cells :uint8_t {
     Cell_0,
     Cell_1,
     Cell_2,
@@ -85,13 +84,15 @@ enum M36Cells {
     Cell_9
 };
 
+// #define MAX_NUMBER_OF_CELLSINPUT_COUNT MAX_NUMBER_OF_CELLS
+#define OUTPUT_COUNT 10
+
 class Protocol {
     bool     m_Error;
     uint16_t m_360_p[PACKET_SIZE];
     uint16_t m_crc16;
     uint16_t m_Undervolt_lvl;
     uint16_t m_Overvolt_lvl;    
-    uint16_t m_Batt_Voltage;
     uint16_t m_Min_Cell_Voltage;
     uint16_t m_Max_Cell_Voltage;
 public:
@@ -99,7 +100,9 @@ public:
     void two8to16(uint8_t rega, uint8_t a, uint8_t b);
     Protocol(uint16_t _ver = 0x116, uint16_t _cap = 0x19C8, uint16_t _date = 0x2A2A);
     void update();
-    uint16_t send_byte(uint8_t c); 
+    uint16_t send_byte(uint8_t c);
+    void set_status_bit(M36StatusBits bit, bool state);
+    void set_pack_voltage(uint16_t pV);
 protected:
     uint16_t looking;
     uint16_t send_360_p(uint8_t pos, uint16_t sz);
@@ -110,7 +113,7 @@ protected:
 enum PrintParam {
     Conf_Allow_Charging,
     Conf_Allow_Discharging,
-    Conf_BQ_dbg,
+    //Conf_BQ_dbg,
     Conf_RT_bits,
     Conf_RS_uOhm,
     Conf_RT_Beta,
@@ -144,11 +147,7 @@ enum PrintParam {
     LAST = Conf_CRC8
 };
 
-
-
 class Console {
-    mcu::Usart &ser;
-    stream::UartStream cout;
     devices::bq769_conf  bq769x_conf;
     devices::bq769_data  bq769x_data;
     devices::bq769_stats bq769x_stats;
@@ -166,27 +165,20 @@ public:
     bool update(mcu::Pin job, const bool force);
     void begin();
     bool Recv();
-    void debug_print();
     void command_format_EEMEM();
     void command_bootloader();
     void stats_load();
     void stats_save();
-    void print_all_stats();
-    void print_all_conf();
-    void print_conf(const PrintParam c);
-//     void command_format_EEMEM();
+
 private:
     void conf_begin_protect();
     void conf_default();
+    uint16_t arr_connected[MAX_NUMBER_OF_CELLS];
+    uint16_t arr_out[OUTPUT_COUNT];
+    uint8_t cell_count = 0;
+    void sorting();
 };
 
 uint8_t gencrc8(uint8_t *data, uint16_t len);
-
-
-
-
-
-
-
 
 }

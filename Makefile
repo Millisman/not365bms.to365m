@@ -1,6 +1,6 @@
 include Makefile.inc
 
-LIBS =  mcu  utils  protocol devices mcu stream
+LIBS =  mcu  utils  protocol devices mcu
 
 CXXFLAGS = $(PRJCXXFLAGS) -I.
 

@@ -18,14 +18,13 @@
 #include <avr/interrupt.h>
 #include <avr/power.h>
 #include <avr/wdt.h>
+#include <avr/sleep.h>
 #include <util/delay.h>
 #include <stdlib.h>
 #include <math.h>
 #include "mcu/watchdog.h"
-#include "mcu/usart.h"
 #include "mcu/pin.h"
-#include "stream/uartstream.h"
-#include <avr/sleep.h>
+
 #include "protocol/not365to365.h"
 
 #define PIN_LED_SCK MAKEPIN(B, 5, OUT)
@@ -35,6 +34,10 @@ void activate_pin_change_int();
 void deactivate_pin_change_int();
 static volatile bool isrWU = false;
 static volatile bool isrRX = false;
+
+void enable_TxRx()  { /*UCSR0B |=  ((1 << RXEN0) | (1 << TXEN0));*/ }
+void disable_TXRx() { /*UCSR0B &= ~((1 << RXEN0) | (1 << TXEN0));*/ }
+
 
 // ISR(INT1_vect) // ISR(INT2_vect)
 ISR(INT0_vect)   { isrWU = true; }
@@ -48,7 +51,7 @@ int main() {
     sei();
     mcu::Pin led(PIN_LED_SCK);   
     led = 1;
-    mcu::Usart &ser = mcu::Usart::get();
+    //mcu::Usart &ser = mcu::Usart::get();
     protocol::Console proto; // Console load conf
     power_adc_disable();
     power_spi_disable();
@@ -63,12 +66,13 @@ int main() {
     uint32_t last_Activity = 0;
 
     while (1) {
-        if (ser.isActivity() || proto.update(led, isrWU) || proto.Recv()) {
+        if (isrRX || proto.update(led, isrWU) || proto.Recv()) {
             last_Activity = mcu::Timer::millis();
+            isrRX = false;
         }
 
         if((uint32_t)(mcu::Timer::millis() - last_Activity) >= 60000) { // 1 mim
-            ser.disable_TXRx();
+            disable_TXRx();
             cli();
             set_sleep_mode(SLEEP_MODE_PWR_SAVE);
             // Timer/Counter2 8-byte OVF 12MHz /1024 = 21.76ms            
@@ -87,7 +91,7 @@ int main() {
             } while (!isrWU && !isrRX && (timer2ovf < 20));
             sleep_disable();
             deactivate_pin_change_int();
-            ser.enable_TxRx();
+            enable_TxRx();
             // Disable Timer/Counter2 and add elapsed time to Arduinos 'timer0_millis'
             TCCR2B = 0;
             TIMSK2 = 0;
