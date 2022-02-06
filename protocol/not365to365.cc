@@ -1,4 +1,5 @@
-/* Shell console for battery management based on bq769x Ic
+/*
+ * Emulation protocol for battery management based on bq769x Ic
  * Copyright (c) 2022 Sergey Kostanoy (https://arduino.uno)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -99,7 +100,7 @@ void uart0_begin() {
     UCSR0B = ((1<<TXEN0) | (1<<RXEN0) | (1<<RXCIE0)   | (1<<TXCIE0));
     UCSR0C = ((1<<UCSZ01) | (1<<UCSZ00));
     sei();
-    LOG_P("not365\r\n");
+    LOG_P(PSTR("not365\r\n"));
 }
 
 uint8_t RxB_Get(uint16_t i) {
@@ -328,9 +329,6 @@ void Console::begin() {
         bq.disableDischarging();
     }
     bq.printRegisters();
-//     debug_print();
-//     print_all_conf();
-//     print_all_stats();
 }
 
 void Console::conf_default() {
@@ -430,7 +428,7 @@ bool Console::update(mcu::Pin job, const bool force) {
         uint8_t error = bq.update();
 
         sorting();
-    
+        proto.set_pack_voltage(bq769x_data.batVoltage_/100);
         proto.set_status_bit(b_OverVoltage,  !!(error & STAT_OV));
         proto.set_status_bit(b_UnderVoltage, !!(error & STAT_UV));
         //if(error & STAT_SCD) { cout << PGM << PSTR("Short Circuit Protection!\r\n"); }
