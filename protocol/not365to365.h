@@ -21,7 +21,6 @@
 #include <string.h>
 #include <avr/eeprom.h>
 #include "devices/bq769x0.h"
-#include "mcu/timer.h"
 #include <avr/pgmspace.h>
 #include "mcu/pin.h"
 
@@ -103,10 +102,10 @@ public:
     uint16_t send_byte(uint8_t c);
     void set_status_bit(M36StatusBits bit, bool state);
     void set_pack_voltage(uint16_t pV);
+    void protocol_send(const uint8_t cmd);
+    uint16_t send_360_p(uint8_t pos, uint16_t sz);
 protected:
     uint16_t looking;
-    uint16_t send_360_p(uint8_t pos, uint16_t sz);
-    void protocol_send(const uint8_t cmd);
 };
 
     
@@ -162,9 +161,9 @@ class Console {
     uint8_t shd;
 public:
     Console();
-    bool update(mcu::Pin job, const bool force);
+    void update(const bool force);
     void begin();
-    bool Recv();
+//     bool Recv();
     void command_format_EEMEM();
     void command_bootloader();
     void stats_load();

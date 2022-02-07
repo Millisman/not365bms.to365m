@@ -26,86 +26,87 @@
 #include "mcu/pin.h"
 
 #include "protocol/not365to365.h"
-
 #define PIN_LED_SCK MAKEPIN(B, 5, OUT)
 
+#include "GyverLibs/GyverPower.h"
+#include "GyverLibs/uptime2.h"
+
 void activate_INT0();
-void activate_pin_change_int();
-void deactivate_pin_change_int();
-static volatile bool isrWU = false;
-static volatile bool isrRX = false;
+void activate_Rx_change_int();
+void deactivate_Rx_change_int();
 
-void enable_TxRx()  { /*UCSR0B |=  ((1 << RXEN0) | (1 << TXEN0));*/ }
-void disable_TXRx() { /*UCSR0B &= ~((1 << RXEN0) | (1 << TXEN0));*/ }
-
-
+mcu::Pin led(PIN_LED_SCK);  
+protocol::Console proto; // Console load conf
+static volatile bool isr_alert;
+uint32_t moment;
+static volatile uint32_t moment_2000;
+static volatile uint32_t last_Activity;
 // ISR(INT1_vect) // ISR(INT2_vect)
-ISR(INT0_vect)   { isrWU = true; }
-ISR(PCINT2_vect) { isrRX = true; }
-static volatile uint16_t timer2ovf = 0;
-ISR(TIMER2_OVF_vect) { timer2ovf++; }
 
-int main() {
-    MCUSR = 0;
-    mcu::Watchdog::disable();
-    sei();
-    mcu::Pin led(PIN_LED_SCK);   
+ISR(INT0_vect)   { isr_alert = true; }           // ALERT
+ISR(PCINT2_vect) { last_Activity = millis2(); }  // USART
+
+void task_alert() {
     led = 1;
-    //mcu::Usart &ser = mcu::Usart::get();
-    protocol::Console proto; // Console load conf
-    power_adc_disable();
-    power_spi_disable();
-    power_timer1_disable();
-    power_twi_disable(); // managed by I2CMaster::    
-    activate_INT0();
-    _delay_ms(100);
+    power.hardwareEnable( PWR_UART0 | PWR_TIMER2 | PWR_I2C );
+    proto.update(true);
     led = 0;
-    _delay_ms(900);
-    mcu::Watchdog::enable(WDTO_4S);
-    proto.begin(); // init  bq769x0, print
-    uint32_t last_Activity = 0;
-
-    while (1) {
-        if (isrRX || proto.update(led, isrWU) || proto.Recv()) {
-            last_Activity = mcu::Timer::millis();
-            isrRX = false;
-        }
-
-        if((uint32_t)(mcu::Timer::millis() - last_Activity) >= 60000) { // 1 mim
-            disable_TXRx();
-            cli();
-            set_sleep_mode(SLEEP_MODE_PWR_SAVE);
-            // Timer/Counter2 8-byte OVF 12MHz /1024 = 21.76ms            
-            TCCR2A = 0;
-            TCCR2B = (1 << CS22) | (1 << CS21) | (1 << CS20);
-            TCNT2 = 0;
-            TIMSK2 = (1 << TOIE2);
-            activate_pin_change_int();
-            mcu::Watchdog::reset();
-            sleep_enable();
-            sei();
-            isrWU = false;
-            isrRX = false;
-            do {
-                sleep_cpu();
-            } while (!isrWU && !isrRX && (timer2ovf < 20));
-            sleep_disable();
-            deactivate_pin_change_int();
-            enable_TxRx();
-            // Disable Timer/Counter2 and add elapsed time to Arduinos 'timer0_millis'
-            TCCR2B = 0;
-            TIMSK2 = 0;
-            float elapsed_time = timer2ovf * 21.76 + TCNT2 * 21.76 / 255.0;
-            mcu::Timer::setmillis(mcu::Timer::millis() + (uint32_t)elapsed_time);
-            timer2ovf = 0;
-            if(isrRX) last_Activity = mcu::Timer::millis();
-            isrRX = false;
-            isrWU = true; // forcing
-        }
-        mcu::Watchdog::reset();
-    }
 }
 
+void task_standby() {
+    led = 1;
+    power.hardwareEnable( PWR_UART0 | PWR_TIMER2 | PWR_I2C );
+    proto.update(false);
+    led = 0;
+}
+
+void task_running() {
+    led = 1;
+    power.hardwareEnable( PWR_UART0 | PWR_TIMER2 | PWR_I2C );
+    proto.update(false);
+    led = 0;
+}
+
+
+int main(void) {
+    moment_2000 = 0;
+    last_Activity = 0;
+    isr_alert = false;
+    MCUSR = 0;
+    mcu::Watchdog::disable();
+    power.hardwareDisable(PWR_ALL);
+    power.hardwareEnable( PWR_UART0 | PWR_TIMER2 | PWR_I2C );
+    uptime2Init();
+    activate_INT0();
+    activate_Rx_change_int();
+    power.setSleepMode(POWERSAVE_SLEEP);
+    mcu::Watchdog::enable(WDTO_4S);
+    proto.begin();
+    
+    for(;;) {
+        
+        moment = millis2();
+
+        if (isr_alert) { task_alert(); isr_alert = false; }
+        
+        if ((moment - moment_2000 >= 2000)) {
+            moment_2000 += 2000;
+            task_standby();
+        }
+        
+        if((uint32_t)(moment - last_Activity) >= 15000) { // 15 sec to idle
+            power.hardwareDisable(PWR_UART0 | PWR_I2C);
+            _delay_ms(5);
+            power.sleep(POWERSAVE_SLEEP);
+        } else {
+            task_running();
+        }
+        
+        mcu::Watchdog::reset();
+    }
+    
+    return 0;
+}
 
 #define CHANGE  1
 #define FALLING 2
@@ -122,14 +123,14 @@ void activate_INT0() {
     //EIMSK = (1 << INT2);
 }
 
-void activate_pin_change_int() {
+void activate_Rx_change_int() {
     // Enable pin change interrupt on the PCINT16 pin using Pin Change Mask Register 2 (PCMSK2)
     PCMSK2 |= (1 << PCINT16); // PD0 RXD
     // Enable pin change interrupt 2 using the Pin Change Interrrupt Control Register (PCICR)
     PCICR |= (1 << PCIE2);    
 }
 
-void deactivate_pin_change_int() {
+void deactivate_Rx_change_int() {
     // Disable pin change interrupt 2 using the Pin Change Interrrupt Control Register (PCICR)
     PCICR &= ~(1 << PCIE2);
     // Enable pin change interrupt on the PCINT16 pin using Pin Change Mask Register 2 (PCMSK2)

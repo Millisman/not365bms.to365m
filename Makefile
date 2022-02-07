@@ -1,6 +1,6 @@
 include Makefile.inc
 
-LIBS =  mcu  utils  protocol devices mcu
+LIBS = devices   GyverLibs utils   mcu  protocol GyverLibs devices mcu  protocol devices GyverLibs utils devices
 
 CXXFLAGS = $(PRJCXXFLAGS) -I.
 

@@ -24,6 +24,7 @@
 #include <avr/pgmspace.h>
 #include <stdio.h>
 
+extern uint32_t moment;
 
 #define BUFFER_SIZE 136
 #define UART_RX_BUFFER_SIZE BUFFER_SIZE
@@ -290,11 +291,11 @@ void Protocol::set_status_bit(M36StatusBits bit, bool state) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool Console::Recv() {
-    bool result = false;
-    proto.update();
-    return result;
-}
+// bool Console::Recv() {
+//     bool result = false;
+//     proto.update();
+//     return result;
+// }
     
 Console::Console():
     bq(bq769x_conf, bq769x_data, bq769x_stats),
@@ -399,17 +400,18 @@ void Console::stats_load() {
 }
 
 void Console::stats_save() {
-    bq769x_stats.ts = mcu::Timer::millis();
+    bq769x_stats.ts = moment;
     bq769x_stats.crc8 = gencrc8((uint8_t*)&bq769x_stats, sizeof(bq769x_stats)-1);
     eeprom_write_block(&bq769x_stats, &In_EEPROM_stats, sizeof(bq769x_stats));
 }
 
-bool Console::update(mcu::Pin job, const bool force) {
-    bool result = force;
+static volatile uint8_t xxx = 0;
+
+void Console::update(const bool force) {
     bq769x_data.alertInterruptFlag_ = force;
     
-    if(mcu::Timer::millis() - m_lastUpdate >= 250) { // 250
-        m_lastUpdate = mcu::Timer::millis();
+    if(moment - m_lastUpdate >= 250) { // 250
+        m_lastUpdate = moment;
         // if (BatteryCurrent() > (int16_t)idle_currentThres) {
         //     m_360_p[Reg_Status] |= (1 << b_Charging);
         // } else {
@@ -423,8 +425,7 @@ bool Console::update(mcu::Pin job, const bool force) {
         // }
         //         proto.set_status_bit(b_OverHeat, true);
 
-        result = false;
-        job = 1;
+        //job = 1;
         uint8_t error = bq.update();
 
         sorting();
@@ -443,16 +444,18 @@ bool Console::update(mcu::Pin job, const bool force) {
             stats_save();
         }
         
-        proto.update();
         
+        
+        //proto.update();
         // uint16_t bigDelta = bq.getMaxCellVoltage() - bq.getMinCellVoltage();
         // if(bigDelta > 100) cout << PGM << PSTR("Difference too big!\r\n");
-        if(m_oldMillis > mcu::Timer::millis())
+        if(m_oldMillis > moment)
             m_millisOverflows++;
-        m_oldMillis = mcu::Timer::millis();
-        job = 0;
+        m_oldMillis = moment;
+        //job = 0;
+
     }
-    return result;
+    proto.update();
 }
 
 
@@ -503,8 +506,8 @@ void Console::sorting() {
     for (uint8_t i = 0; i < OUTPUT_COUNT; ++i) { arr_out[i] = 0; }
     cell_count = 0;
     for (uint8_t i = 0; i <  MAX_NUMBER_OF_CELLS; ++i) {
-        if (bq769x_stats.cellVoltages_[i] > 512) {
-            arr_connected[cell_count++] = bq769x_stats.cellIdMap_[i];
+        if (bq769x_stats.cellVoltages_[i] > 256) {
+            arr_connected[cell_count++] = bq769x_stats.cellVoltages_[i];
         }
     }
     
@@ -530,7 +533,10 @@ void Console::sorting() {
         for (uint8_t i = 0; i < cell_count; ++i) { arr_out[i] = arr_connected[i]; }
     }
     
-    for (uint8_t i = 0; i < OUTPUT_COUNT; ++i) { proto.set_Cell_Voltage((M36Cells)i, arr_out[i]); }
+    for (uint8_t i = 0; i < OUTPUT_COUNT; ++i) { 
+        proto.set_Cell_Voltage((M36Cells)i, arr_out[i]);
+        //LOG("%u = %u\n", i, arr_out[i]);
+    }
     
 }
 

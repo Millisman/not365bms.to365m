@@ -18,7 +18,6 @@
 #include "bq769x0.h"
 
 #include <string.h>
-#include "mcu/timer.h"
 #include <util/delay.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -27,10 +26,14 @@
 #include <avr/pgmspace.h>
 #include <stdint.h>
 
+extern uint32_t moment;
 
 namespace devices {
-
-   
+    
+    
+// extern uint32_t moment;
+    
+    
 const char *byte2char(int x) {
     static char b[9];
     b[0] = '\0';
@@ -112,7 +115,7 @@ uint8_t bq769x0::checkStatus() {
                 chargingDisabled_ |= (1 << ERROR_XREADY);
                 dischargingDisabled_ |= (1 << ERROR_XREADY);
                 stats.errorCounter_[ERROR_XREADY]++;
-                stats.errorTimestamps_[ERROR_XREADY] = mcu::Timer::millis();
+                stats.errorTimestamps_[ERROR_XREADY] = moment;
                 //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: XREADY\r\n");
             }
             if (!errorStatus_.bits.OVRD_ALERT && sys_stat.bits.OVRD_ALERT) { // Alert error
@@ -120,21 +123,21 @@ uint8_t bq769x0::checkStatus() {
                 chargingDisabled_ |= (1 << ERROR_ALERT);
                 dischargingDisabled_ |= (1 << ERROR_ALERT);
                 stats.errorCounter_[ERROR_ALERT]++;
-                stats.errorTimestamps_[ERROR_ALERT] = mcu::Timer::millis();
+                stats.errorTimestamps_[ERROR_ALERT] = moment;
                 //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: ALERT\r\n");
             }
             if (sys_stat.bits.UV) { // UV error
                 mDischargingEnabled = false;
                 dischargingDisabled_ |= (1 << ERROR_UVP);
                 stats.errorCounter_[ERROR_UVP]++;
-                stats.errorTimestamps_[ERROR_UVP] = mcu::Timer::millis();
+                stats.errorTimestamps_[ERROR_UVP] = moment;
                 //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: UVP\r\n");
             }
             if (sys_stat.bits.OV) { // OV error
                 mChargingEnabled = false;
                 chargingDisabled_ |= (1 << ERROR_OVP);
                 stats.errorCounter_[ERROR_OVP]++;
-                stats.errorTimestamps_[ERROR_OVP] = mcu::Timer::millis();
+                stats.errorTimestamps_[ERROR_OVP] = moment;
                 //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: OVP\r\n");
 
             }
@@ -142,14 +145,14 @@ uint8_t bq769x0::checkStatus() {
                 mDischargingEnabled = false;
                 dischargingDisabled_ |= (1 << ERROR_SCD);
                 stats.errorCounter_[ERROR_SCD]++;
-                stats.errorTimestamps_[ERROR_SCD] = mcu::Timer::millis();
+                stats.errorTimestamps_[ERROR_SCD] = moment;
                 //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: SCD\r\n");
             }
             if (sys_stat.bits.OCD) { // OCD
                 mDischargingEnabled = false;
                 dischargingDisabled_ |= (1 << ERROR_OCD);
                 stats.errorCounter_[ERROR_OCD]++;
-                stats.errorTimestamps_[ERROR_OCD] = mcu::Timer::millis();
+                stats.errorTimestamps_[ERROR_OCD] = moment;
 
                 //if(conf.BQ_dbg) cout << PGM << PSTR("bq769x0 ERROR: OCD\r\n");
             }
@@ -167,7 +170,7 @@ void bq769x0::clearErrors() {
     
     if (errorStatus_.bits.DEVICE_XREADY) {
         // datasheet recommendation: try to clear after waiting a few seconds
-        if((uint32_t)(mcu::Timer::millis() - stats.errorTimestamps_[ERROR_XREADY]) > 3UL * 1000UL) {
+        if((uint32_t)(moment - stats.errorTimestamps_[ERROR_XREADY]) > 3UL * 1000UL) {
             //if(conf.BQ_dbg) cout << PGM << PSTR("Attempting to clear XREADY error\r\n");
             writeRegister(SYS_STAT, STAT_DEVICE_XREADY);
             enableCharging(1 << ERROR_XREADY);
@@ -203,7 +206,7 @@ void bq769x0::clearErrors() {
     }
 
     if(errorStatus_.bits.SCD) {
-        if((uint32_t)(mcu::Timer::millis() - stats.errorTimestamps_[ERROR_SCD]) > 10UL * 1000UL) {
+        if((uint32_t)(moment - stats.errorTimestamps_[ERROR_SCD]) > 10UL * 1000UL) {
             //if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear short circuit err!\r\n");
             writeRegister(SYS_STAT, STAT_SCD);
             enableDischarging(1 << ERROR_SCD);
@@ -212,7 +215,7 @@ void bq769x0::clearErrors() {
     }
     
     if(errorStatus_.bits.OCD) {
-        if((uint32_t)(mcu::Timer::millis() - stats.errorTimestamps_[ERROR_OCD]) > 10UL * 1000UL) {
+        if((uint32_t)(moment - stats.errorTimestamps_[ERROR_OCD]) > 10UL * 1000UL) {
             //if(conf.BQ_dbg) cout << PGM << PSTR("Attempt clear overcurrent charge err!\r\n");
             writeRegister(SYS_STAT, STAT_OCD);
             enableDischarging(1 << ERROR_OCD);
@@ -302,13 +305,13 @@ void bq769x0::disableDischarging(uint16_t flag) {
 // (sufficient idle time + voltage)
 
 void bq769x0::updateBalancingSwitches(void) {
-    int32_t idleSeconds = (mcu::Timer::millis() - stats.idleTimestamp_) / 1000;
+    int32_t idleSeconds = (moment - stats.idleTimestamp_) / 1000;
     uint8_t numberOfSections = (MAX_NUMBER_OF_CELLS + 4) / 5;
 
     // check for millis() overflow
     if (idleSeconds < 0) {
         stats.idleTimestamp_ = 0;
-        idleSeconds = mcu::Timer::millis() / 1000;
+        idleSeconds = moment / 1000;
     }
 
     // check if balancing allowed
@@ -631,9 +634,9 @@ void bq769x0::updateCurrent() {
         if (data.batCurrent_ > (int32_t)conf.CurrentThresholdIdle_mA) {
             if (!data.charging_) {
                 data.charging_ = 1;
-                stats.chargeTimestamp_ = mcu::Timer::millis();
+                stats.chargeTimestamp_ = moment;
             }
-            else if (data.charging_ == 1 && (uint32_t)(mcu::Timer::millis() - stats.chargeTimestamp_) > 60UL * 1000UL) {
+            else if (data.charging_ == 1 && (uint32_t)(moment - stats.chargeTimestamp_) > 60UL * 1000UL) {
                 data.charging_ = 2;
                 stats.chargedTimes_++;
             }
@@ -644,7 +647,7 @@ void bq769x0::updateCurrent() {
         // reset idleTimestamp
         if (abs(data.batCurrent_) > conf.CurrentThresholdIdle_mA) {
             if(data.batCurrent_ < 0 || !(conf.BalancingInCharge && data.charging_ == 2))
-                stats.idleTimestamp_ = mcu::Timer::millis();
+                stats.idleTimestamp_ = moment;
         }
 
         // no error occured which caused alert
@@ -792,7 +795,7 @@ void bq769x0::checkUser() {
         if(!(chargingDisabled_ & (1 << ERROR_USER_CHG_TEMP))) {
             disableCharging(1 << ERROR_USER_CHG_TEMP);
             stats.errorCounter_[ERROR_USER_CHG_TEMP]++;
-            stats.errorTimestamps_[ERROR_USER_CHG_TEMP] = mcu::Timer::millis();
+            stats.errorTimestamps_[ERROR_USER_CHG_TEMP] = moment;
         }
     } else if(chargingDisabled_ & (1 << ERROR_USER_CHG_TEMP)) {
         enableCharging(1 << ERROR_USER_CHG_TEMP);
@@ -802,7 +805,7 @@ void bq769x0::checkUser() {
         if(!(dischargingDisabled_ & (1 << ERROR_USER_DISCHG_TEMP))) {
             disableDischarging(1 << ERROR_USER_DISCHG_TEMP);
             stats.errorCounter_[ERROR_USER_DISCHG_TEMP]++;
-            stats.errorTimestamps_[ERROR_USER_DISCHG_TEMP] = mcu::Timer::millis();
+            stats.errorTimestamps_[ERROR_USER_DISCHG_TEMP] = moment;
         }
     } else if(dischargingDisabled_ & (1 << ERROR_USER_DISCHG_TEMP)) {
         enableDischarging(1 << ERROR_USER_DISCHG_TEMP);
@@ -815,11 +818,11 @@ void bq769x0::checkUser() {
         user_CHGOCD_ReleaseTimestamp_ = 0;
         if(mChargingEnabled && !(chargingDisabled_ & (1 << ERROR_USER_CHG_OCD))) {
             if(!user_CHGOCD_TriggerTimestamp_)
-                user_CHGOCD_TriggerTimestamp_ = mcu::Timer::millis();
-            if((mcu::Timer::millis() - user_CHGOCD_TriggerTimestamp_) > conf.Cell_OCD_ms || data.user_CHGOCD_ReleasedNow_) {
+                user_CHGOCD_TriggerTimestamp_ = moment;
+            if((moment - user_CHGOCD_TriggerTimestamp_) > conf.Cell_OCD_ms || data.user_CHGOCD_ReleasedNow_) {
                 disableCharging(1 << ERROR_USER_CHG_OCD);
                 stats.errorCounter_[ERROR_USER_CHG_OCD]++;
-                stats.errorTimestamps_[ERROR_USER_CHG_OCD] = mcu::Timer::millis();
+                stats.errorTimestamps_[ERROR_USER_CHG_OCD] = moment;
             }
         }
     } else {
@@ -827,8 +830,8 @@ void bq769x0::checkUser() {
         data.user_CHGOCD_ReleasedNow_ = false;
         if(chargingDisabled_ & (1 << ERROR_USER_CHG_OCD)) {
             if(!user_CHGOCD_ReleaseTimestamp_)
-                user_CHGOCD_ReleaseTimestamp_ = mcu::Timer::millis();
-            if((uint32_t)(mcu::Timer::millis() - user_CHGOCD_ReleaseTimestamp_) > 10UL * 1000UL) {
+                user_CHGOCD_ReleaseTimestamp_ = moment;
+            if((uint32_t)(moment - user_CHGOCD_ReleaseTimestamp_) > 10UL * 1000UL) {
                 enableCharging(1 << ERROR_USER_CHG_OCD);
                 user_CHGOCD_ReleaseTimestamp_ = 0;
                 data.user_CHGOCD_ReleasedNow_ = true;
