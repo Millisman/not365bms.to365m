@@ -1,4 +1,5 @@
-/* Shell console for battery management based bq769x Ic
+/* 
+ * Shell console for battery management based bq769x Ic
  * Copyright (c) 2022 Sergey Kostanoy (https://arduino.uno)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,49 +25,51 @@
 #include <math.h>
 #include "mcu/watchdog.h"
 #include "mcu/pin.h"
-
-#include "protocol/not365to365.h"
-#define PIN_LED_SCK MAKEPIN(B, 5, OUT)
-
+#include "GyverLibs/GyverCore_uart.h"
 #include "GyverLibs/GyverPower.h"
 #include "GyverLibs/uptime2.h"
+#include "protocol/console.h"
+
+GyverUart uart;
+#define PIN_LED_SCK MAKEPIN(B, 5, OUT)
 
 void activate_INT0();
 void activate_Rx_change_int();
 void deactivate_Rx_change_int();
 
-mcu::Pin led(PIN_LED_SCK);  
+
 protocol::Console proto; // Console load conf
-static volatile bool isr_alert;
-uint32_t moment;
-static volatile uint32_t moment_2000;
-static volatile uint32_t last_Activity;
+volatile bool isr_alert;
+volatile uint32_t moment;
+volatile uint32_t moment_2000;
+volatile uint32_t last_Activity;
 // ISR(INT1_vect) // ISR(INT2_vect)
 
 ISR(INT0_vect)   { isr_alert = true; }           // ALERT
-ISR(PCINT2_vect) { last_Activity = millis2(); }  // USART
+ISR(PCINT2_vect) { last_Activity = moment; deactivate_Rx_change_int (); }  // USART
 
-void task_alert() {
+mcu::Pin led(PIN_LED_SCK);
+
+enum Job { alert, standby, running };
+
+void task_0(Job j) {
     led = 1;
-    power.hardwareEnable( PWR_UART0 | PWR_TIMER2 | PWR_I2C );
-    proto.update(true);
+    bool act;
+    power.hardwareEnable( PWR_UART0 | PWR_TIMER2 | PWR_I2C );   
+    switch (j) {
+        case alert:
+            act = proto.update(true);
+            break;
+        case standby:
+            act = proto.update(false);
+            break;
+        case running:
+            act = proto.update(false);
+            break;
+    }
+    if (act) { last_Activity = moment; }
     led = 0;
 }
-
-void task_standby() {
-    led = 1;
-    power.hardwareEnable( PWR_UART0 | PWR_TIMER2 | PWR_I2C );
-    proto.update(false);
-    led = 0;
-}
-
-void task_running() {
-    led = 1;
-    power.hardwareEnable( PWR_UART0 | PWR_TIMER2 | PWR_I2C );
-    proto.update(false);
-    led = 0;
-}
-
 
 int main(void) {
     moment_2000 = 0;
@@ -77,34 +80,32 @@ int main(void) {
     power.hardwareDisable(PWR_ALL);
     power.hardwareEnable( PWR_UART0 | PWR_TIMER2 | PWR_I2C );
     uptime2Init();
-    activate_INT0();
-    activate_Rx_change_int();
-    power.setSleepMode(POWERSAVE_SLEEP);
+    uart.begin(115200);
+    power.setSleepMode(IDLE_SLEEP);
     mcu::Watchdog::enable(WDTO_4S);
     proto.begin();
+    proto.debug_print();
+    activate_INT0();
     
     for(;;) {
-        
         moment = millis2();
-
-        if (isr_alert) { task_alert(); isr_alert = false; }
+        
+        if (isr_alert) { task_0(alert); isr_alert = false; }
         
         if ((moment - moment_2000 >= 2000)) {
             moment_2000 += 2000;
-            task_standby();
+            task_0(standby);
         }
         
         if((uint32_t)(moment - last_Activity) >= 15000) { // 15 sec to idle
             power.hardwareDisable(PWR_UART0 | PWR_I2C);
-            _delay_ms(5);
+            activate_Rx_change_int();
             power.sleep(POWERSAVE_SLEEP);
         } else {
-            task_running();
+            task_0(running);
         }
-        
         mcu::Watchdog::reset();
     }
-    
     return 0;
 }
 

@@ -24,6 +24,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <avr/pgmspace.h>
+#include <GyverLibs/GyverCore_uart.h>
 #include <stdint.h>
 
 extern uint32_t moment;
@@ -320,7 +321,7 @@ void bq769x0::updateBalancingSwitches(void) {
         stats.cellVoltages_[stats.idCellMaxVoltage_] > conf.BalancingCellMin_mV &&
         (stats.cellVoltages_[stats.idCellMaxVoltage_] - stats.cellVoltages_[stats.idCellMinVoltage_]) > conf.BalancingCellMaxDifference_mV)
     {
-        //Serial.println("Balancing enabled!");
+        //Serial.print("Balancing enabled!");
         data.balancingStatus_ = 0;  // current status will be set in following loop
 
         //regCELLBAL_t cellbal;
@@ -609,7 +610,7 @@ void bq769x0::updateCurrent() {
     sys_stat.regByte = readRegister(SYS_STAT);
     // check if new current reading available
     if (sys_stat.bits.CC_READY == 1) {
-        //Serial.println("reading CC register...");
+        //Serial.print("reading CC register...");
         data.batCurrent_ = (int16_t)readDoubleRegister(CC_HI_BYTE);
         data.batCurrent_ = ((int32_t)data.batCurrent_ * 8440L) / (int32_t)conf.RS_uOhm;  // mA
 
@@ -841,24 +842,22 @@ void bq769x0::checkUser() {
 }
 
 void bq769x0::printRegisters() {
-//     cout 
-//         << PGM << PSTR("\r\n   ADCGAIN: ") << stats.adcGain_
-//         << PGM << PSTR("\r\n ADCOFFSET: ") << stats.adcOffset_
-//         << PGM << PSTR("\r\n   CHG DIS: ") << chargingDisabled_
-//         << PGM << PSTR("\r\nDISCHG DIS: ") << dischargingDisabled_ << EOL
-//         << PGM << PSTR("\r\n0x00  SYS_STAT: ") << byte2char(readRegister(SYS_STAT))
-//         << PGM << PSTR("\r\n0x01  CELLBAL1: ") << byte2char(readRegister(CELLBAL1))
-//         << PGM << PSTR("\r\n0x04 SYS_CTRL1: ") << byte2char(readRegister(SYS_CTRL1))
-//         << PGM << PSTR("\r\n0x05 SYS_CTRL2: ") << byte2char(readRegister(SYS_CTRL2))
-//         << PGM << PSTR("\r\n0x06  PROTECT1: ") << byte2char(readRegister(PROTECT1))
-//         << PGM << PSTR("\r\n0x07  PROTECT2: ") << byte2char(readRegister(PROTECT2))
-//         << PGM << PSTR("\r\n0x08  PROTECT3: ") << byte2char(readRegister(PROTECT3))
-//         << PGM << PSTR("\r\n0x09   OV_TRIP: ") << byte2char(readRegister(OV_TRIP))
-//         << PGM << PSTR("\r\n0x0A   UV_TRIP: ") << byte2char(readRegister(UV_TRIP))
-//         << PGM << PSTR("\r\n0x0B    CC_CFG: ") << byte2char(readRegister(CC_CFG))
-//         << PGM << PSTR("\r\n0x32  CC_HI_LO: ") << readDoubleRegister(CC_HI_BYTE)
-//         << PGM << PSTR("\r\n0x2A BAT_HI_LO: ") << readDoubleRegister(BAT_HI_BYTE)
-//         << EOL;
-    }
+    uart.print(F("\r\n0x00 SYS_STAT:  ")); uart.print(*byte2char(readRegister(SYS_STAT)));
+    uart.print(F("\t0x01 CELLBAL1:  ")); uart.print(*byte2char(readRegister(CELLBAL1)));
+    uart.print(F("\r\n0x04 SYS_CTRL1: ")); uart.print(*byte2char(readRegister(SYS_CTRL1)));
+    uart.print(F("\t0x05 SYS_CTRL2: ")); uart.print(*byte2char(readRegister(SYS_CTRL2)));
+    uart.print(F("\r\n0x06 PROTECT1:  ")); uart.print(*byte2char(readRegister(PROTECT1)));
+    uart.print(F("\t0x07 PROTECT2:  ")); uart.print(*byte2char(readRegister(PROTECT2)));
+    uart.print(F("\r\n0x08 PROTECT3   ")); uart.print(*byte2char(readRegister(PROTECT3)));
+    uart.print(F("\t0x09 OV_TRIP:   ")); uart.print(*byte2char(readRegister(OV_TRIP)));
+    uart.print(F("\r\n0x0A UV_TRIP:   ")); uart.print(*byte2char(readRegister(UV_TRIP)));
+    uart.print(F("\t0x0B CC_CFG:    ")); uart.print(*byte2char(readRegister(CC_CFG)));
+    uart.print(F("\r\n0x32 CC_HI_LO:  ")); uart.print(readDoubleRegister(CC_HI_BYTE));
+    uart.print(F("\t0x2A BAT_HI_LO: ")); uart.print(readDoubleRegister(BAT_HI_BYTE));
+    uart.print(F("\r\nADCGAIN:        ")); uart.print(stats.adcGain_);
+    uart.print(F("\tADCOFFSET:      ")); uart.print(stats.adcOffset_);
+    uart.print(F("\r\nCHG DIS:        ")); uart.print(chargingDisabled_);
+    uart.print(F("\tDISCHG DIS:     ")); uart.print(dischargingDisabled_);
+}
 
 }

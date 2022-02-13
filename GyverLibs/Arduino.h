@@ -14,6 +14,9 @@
 extern "C"{
 #endif
 
+class __FlashStringHelper;
+#define F(string_literal) (reinterpret_cast<const __FlashStringHelper *>(PSTR(string_literal)))
+    
 // ===== CONSTANTS =====
 #define HIGH 0x1
 #define LOW  0x0

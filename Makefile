@@ -31,7 +31,7 @@ clean:
 	-@for lib in $(LIBS); do (cd $$lib; $(MAKE) clean); done
 	-@rm -rf obj
 	-@rm -rf .dep
-	-@rm $(TARGET)
+# 	-@rm $(TARGET)
 
 test: force_look
 	@cd test ; $(MAKE) ; ./test
